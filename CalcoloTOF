@@ -1,0 +1,328 @@
+/* Funzione per trovare tempo di volo con input I, Q, la loro dimensione e la frequenza di
+campionamento. */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+double CalcoloTOF(int I[], int Q[], int n, double fs) {
+    // Vettore ampiezza
+    double A[n]; 
+
+    for (int i = 0; i < n; i++) {
+        A[i] = sqrt(I[i] * I[i] + Q[i] * Q[i]);
+    }
+
+    // Calcolo del massimo valore dell'ampiezza
+    double A_max = A[0];
+    int indice_max;
+
+    for (int i = 1; i < n; i++) {
+        if (A[i] > A_max) {
+            A_max = A[i];
+            indice_max = i;
+        }
+    }
+
+    // Calcolo del punto target
+    double target = A_max / 2;
+
+    /* Bisogna eseguire un'interpolazione fra i campioni precedente e successivo al valore target. 
+    Questi vengono ricavati calcolando le differenze tra il valore target e gli altri valori 
+    presenti in A. Quando si verifica un cambio di segno nelle differenze, si identifica un 
+    punto di passaggio attraverso il punto target. La funzione è stata sviluppata in modo tale
+    da avere questi punti solo sul fronte di salita del tratto di segnale con picco A_max. */
+    double differenze[indice_max];
+
+    // Vengono presi in considerazione solo i campioni prima del picco
+    for (int j = 0; j < indice_max; j++) {
+        differenze[j] = (A[j] - target);
+    }
+
+    int indice_inf = 0;
+    int indice_sup = 0;
+
+    for (int j = 0; j < indice_max; j++) {
+        if (differenze[j] * differenze[j + 1] < 0) {
+            indice_inf = j;
+            indice_sup = j + 1;
+        }
+    }
+
+    // Interpolazione lineare su 256 punti fra il valore precedente e successivo al target
+    int interp = 256;
+    double xp[interp];
+    double yp[interp];
+    double step = (double)(indice_sup - indice_inf) / (interp - 1);
+
+    // Calcolo dei punti di interpolazione
+    for (int i = 0; i < interp; i++) {
+        xp[i] = indice_inf + i * step;
+        yp[i] = A[indice_inf] + (xp[i] - indice_inf) * (A[indice_sup] - A[indice_inf]) / (indice_sup - indice_inf);
+    }
+
+    /* Calcolo della differenza fra i punti interpolati e il target per trovare il valore
+    interpolato più vicino al target stesso. */
+    double diff_inter[interp];
+    int indice_target; // Indice del target sulla linea di interpolazione (fra 0 e 256)
+
+    for (int i = 0; i < interp; i++) {
+        diff_inter[i] = fabs(yp[i] - target);
+    }
+
+    double target_y = diff_inter[0];
+
+    for (int i = 1; i < interp; i++) {
+        if (diff_inter[i] < target_y) {
+            target_y = diff_inter[i];
+            indice_target = i;
+        }
+    }
+
+    // Calcolo dell'indice del target all'interno della misurazione
+    double indice_inf_double = (double)indice_inf;
+    double indice_target_double = (double)indice_target;
+    double campione = (double)(indice_inf_double + indice_target_double / (interp-1));
+
+    const double ODR = 2;
+    const double PRE_TRIGGER = 0.0006;
+
+    // Calcolo del Tempo di Volo e della distanza
+    double tof = (ODR / fs * (campione - 1) - PRE_TRIGGER); 
+    double distanza = tof * 343;
+    /* La distanza tra i sensori è nota quindi possiamo filtrare i valori di distanza 
+    che non rientrano in un intervallo specifico dal valore noto. */
+const double DIST = 0.052000; 
+
+    // Calcolo dell'intervallo del 10%
+    float intervallo = 0.1 * DIST;
+
+    // Calcolo dei limiti dell'intervallo
+    float limite_superiore = DIST + intervallo;
+    float limite_inferiore = DIST - intervallo;
+
+    // Controlla se il valore è all'interno dell'intervallo
+    if (distanza >= limite_inferiore && distanza <= limite_superiore) {
+        printf("La distanza tra i sensori è: %f,\n", distanza);  // Il valore è all'interno dell'intervallo
+    } else {
+        printf("La distanza risultante è errata"); // Il valore è al di fuori dell'intervallo
+    }
+
+    printf("Time of flight: %f\n", tof);
+
+    return tof;
+}
+
+int main() {
+    int I[] = {0,
+    -4,
+    -18,
+    -27,
+    11,
+    497,
+    1753,
+    3062,
+    3720,
+    3672,
+    3038,
+    2296,
+    1782,
+    1415,
+    1128,
+    893,
+    676,
+    497,
+    367,
+    272,
+    218,
+    185,
+    148,
+    84,
+    31,
+    52,
+    52,
+    4,
+    11,
+    28,
+    -3,
+    -23,
+    -8,
+    -14,
+    -66,
+    -72,
+    -22,
+    -14,
+    -27,
+    -26,
+    -28,
+    -10,
+    5,
+    8,
+    33,
+    32,
+    5,
+    20,
+    41,
+    36,
+    22,
+    8,
+    17,
+    34,
+    22,
+    -12,
+    -12,
+    18,
+    10,
+    -17,
+    0,
+    5,
+    -2,0
+    -27,
+    -234,
+    -1112,
+    -3189,
+    -6768,
+    -11213,
+    -14837,
+    -16035,
+    -14499,
+    -11188,
+    -7285,
+    -3691,
+    -1266,
+    -501,
+    -1046,
+    -2040,
+    -2765,
+    -2959,
+    -2682,
+    -2105,
+    -1415,
+    -857,
+    -719,
+    -1139,
+    -2083,
+    -3336,
+    -4419,
+    -4909,
+    -4748,
+    -4127,
+    -3254,
+    -2183,
+    -926,
+    257,
+    938,
+    1028,
+    857,
+    620,
+    333,
+    102};
+    int Q[] = {0,
+    7,
+    47,
+    86,
+    133,
+    309,
+    445,
+    446,
+    664,
+    986,
+    976,
+    734,
+    479,
+    248,
+    123,
+    100,
+    73,
+    24,
+    -34,
+    -75,
+    -49,
+    6,
+    5,
+    -37,
+    -42,
+    -16,
+    -15,
+    -44,
+    -42,
+    -19,
+    -33,
+    -51,
+    -21,
+    33,
+    37,
+    4,
+    8,
+    26,
+    20,
+    14,
+    -7,
+    -24,
+    7,
+    9,
+    -22,
+    3,
+    23,
+    -1,
+    -13,
+    3,
+    35,
+    34,
+    8,
+    8,
+    14,
+    17,
+    6,
+    -23,
+    -23,
+    -1,
+    -8,
+    -16,
+    14,
+    2,
+    -178,
+    -790,
+    -2251,
+    -4574,
+    -7019,
+    -8514,
+    -8366,
+    -6697,
+    -4073,
+    -910,
+    2410,
+    5210,
+    6790,
+    6992,
+    6248,
+    5230,
+    4399,
+    3828,
+    3484,
+    3276,
+    3062,
+    2799,
+    2458,
+    1980,
+    1371,
+    716,
+    57,
+    -563,
+    -961,
+    -960,
+    -536,
+    228,
+    1103,
+    1753,
+    2019,
+    1993,
+    1808,
+    1544,
+    1297};
+    int n = sizeof(I)/sizeof(I[0]);
+    double fs = 175993.0;
+    double tof = CalcoloTOF(I, Q, n, fs);
+
+    return 0;
+}
